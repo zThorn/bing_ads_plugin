@@ -11,36 +11,40 @@ from boto.s3.key import Key
 from airflow.models import BaseOperator
 from airflow.utils.decorators import apply_defaults
 
-from bing_ads_plugins.hooks.bing_ads_client_v11_hook import BingAdsHook
+from bing_ads_plugins.hooks.bing_ads_client_v13_hook import BingAdsHook
 
 
 class BingAdsOperator(BaseOperator):
 
-    class Config(object):
-        def __init__(self):
-            self
-
     template_fields = ('params',)
 
     @apply_defaults
-    def __init__(self, bucket_name, env, config, conn_id=None,
-                 *args, **kwargs):
+    def __init__(self, 
+                bucket_name, 
+                env, 
+                conn_id=None,
+                authorization_data,
+                report_req,
+                reporting_service,
+                reporting_service_manager,
+                _file,
+                *args, **kwargs):
 
         super(BingAdsOperator, self).__init__(*args, **kwargs)
-        self.config = config
-        self.authorization_data = self.config.AUTHORIZATION_DATA
-        self.report_request = self.config.reportReq
-        self.reporting_service = self.config.REPORTING_SERVICE
-        self.reporting_service_manager = self.config.REPORTING_SERVICE_MANAGER
+        self.authorization_data = authorization_data
+        self.report_request = report_req
+        self.reporting_service = reporting_service
+        self.reporting_service_manager = reporting_service_manager
         self.xcom_push = True
         self.env = env
         self.conn_id = conn_id
         self.bucket_name = bucket_name
+        self.file = _file
 
     def execute(self, context):
         self.downloadReport(self.config)
         self.uploadFile()
-        return json.dumps({'input': {'key': self.config.file}})
+        return json.dumps({'input': {'key': self.file}})
 
     def removeLines(self, file, start):
         """

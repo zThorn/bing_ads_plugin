@@ -1,9 +1,9 @@
 """Bing Ads Client Hook"""
 from bingads.service_client import ServiceClient
 from bingads.authorization import *
-from bingads.v11 import *
-from bingads.v11.bulk import *
-from bingads.v11.reporting import *
+from bingads.v13 import *
+from bingads.v13.bulk import *
+from bingads.v13.reporting import *
 
 from airflow.hooks.base_hook import BaseHook
 from airflow.models import Connection
@@ -12,16 +12,24 @@ from airflow.utils.db import provide_session
 import json
 import logging
 
-logging.getLogger('suds').setLevel(logging.CRITICAL)
-
 
 class BingAdsHook(BaseHook):
     """
     Interact with Bing Ads Apis
     """
 
-    def __init__(self, config, file_name, path, start_date, end_date,
-                 conn_id="", *args, **kwargs):
+    def __init__(self,
+                 file_name,
+                 path,
+                 start_date,
+                 end_date,
+                 client_id,
+                 client_state,
+                 timeout_ms = 36000000
+                 conn_id = "",
+                 environment = "production",
+                 version=13,
+                 *args, **kwargs):
         """
         Args:
 
@@ -30,12 +38,12 @@ class BingAdsHook(BaseHook):
         self.start_date = start_date
         self.end_date = end_date
         self.conn_id = conn_id
-        self.ENVIRONMENT = "production"
-        self.VERSION = 11
-        self.CLIENT_ID = config.CLIENT_ID
-        self.CLIENT_STATE = config.CLIENT_STATE
-        self.TIMEOUT_IN_MILLISECONDS = 36000000
-        self.FILE_DIRECTORY = path
+        self.environment = environment
+        self.version = version
+        self.client_id = client_id
+        self.client_state = client_state
+        self.timeout_ms = timeout_ms
+        self.path = path
         self.file_name = file_name
 
     def runReport(self, auth_data, reportReq, rep_ser, rep_ser_man):
@@ -121,23 +129,23 @@ class BingAdsHook(BaseHook):
             custom_date_range_start.Day = self.start_date.day
             custom_date_range_start.Month = self.start_date.month
             custom_date_range_start.Year = self.start_date.year
+
             report_time.CustomDateRangeStart = custom_date_range_start
             custom_date_range_end = reporting_service.factory.create('Date')
             custom_date_range_end.Day = self.end_date.day
             custom_date_range_end.Month = self.end_date.month
             custom_date_range_end.Year = self.end_date.year
             report_time.CustomDateRangeEnd = custom_date_range_end
+  
             report_time.PredefinedTime = None
             report_request.Time = report_time
 
             reporting_download_parameters = ReportingDownloadParameters(
                 report_request=report_request,
-                result_file_directory=self.FILE_DIRECTORY,
+                result_file_directory=self.path,
                 result_file_name=self.file_name,
-                # Set this value true if you want to overwrite the same file.
                 overwrite_result_file=True,
-                # You may optionally cancel the download after a specified time interval.
-                timeout_in_milliseconds=self.TIMEOUT_IN_MILLISECONDS
+                timeout_in_milliseconds=self.timeout_ms
             )
 
             # Option A - Background Completion with Rep  ortingServiceManager
@@ -202,19 +210,16 @@ class BingAdsHook(BaseHook):
 
         # You may optionally cancel the track() operation after a specified time interval.
         reporting_operation_status = reporting_download_operation.track(
-            timeout_in_milliseconds=self.TIMEOUT_IN_MILLISECONDS)
+            timeout_in_milliseconds=self.timeout_ms)
 
         result_file_path = reporting_download_operation.download_result_file(
-            result_file_directory=self.FILE_DIRECTORY,
+            result_file_directory=self.path,
             result_file_name=download_file_name,
             decompress=True,
-            # Set this value true if you want to overwrite the same file.
             overwrite=True,
             # You may optionally cancel the download after a specified time interval.
-            timeout_in_milliseconds=self.TIMEOUT_IN_MILLISECONDS
+            timeout_in_milliseconds=self.timeout_ms
         )
-
-        # output_status_message("Download result file: {0}\n".format(result_file_path))
 
     def download_results(self, request_id, authorization_data, download_file_name):
         '''
@@ -227,24 +232,21 @@ class BingAdsHook(BaseHook):
             request_id=request_id,
             authorization_data=authorization_data,
             poll_interval_in_milliseconds=1000,
-            environment='production',
+            environment=self.environment,
         )
 
         # Use track() to indicate that the application should wait to ensure that
         # the download status is completed.
         # You may optionally cancel the track() operation after a specified time interval.
         reporting_operation_status = reporting_download_operation.track(
-            timeout_in_milliseconds=self.TIMEOUT_IN_MILLISECONDS)
+            timeout_in_milliseconds=self.timeout_ms)
 
         result_file_path = reporting_download_operation.download_result_file(
-            result_file_directory=self.FILE_DIRECTORY,
+            result_file_directory=self.path,
             result_file_name=download_file_name,
             decompress=True,
             # Set this value true if you want to overwrite the same file.
             overwrite=True,
             # You may optionally cancel the download after a specified time interval.
-            timeout_in_milliseconds=self.TIMEOUT_IN_MILLISECONDS
+            timeout_in_milliseconds=self.timeout_ms
         )
-
-        # output_status_message("Download result file: {0}".format(result_file_path))
-        # output_status_message("Status: {0}\n".format(reporting_operation_status.status))
